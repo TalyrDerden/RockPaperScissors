@@ -38,6 +38,7 @@ public class GameServer {
             log.info("Server started on port " + serverSocket.getLocalPort());
             while (running) {
                 var socket = serverSocket.accept();
+                log.info("New client connected: " + socket.getRemoteSocketAddress());
                 clientHandlerPool.submit(() -> handleClient(socket));
             }
         } catch (Exception e) {
@@ -67,6 +68,7 @@ public class GameServer {
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             out.println("Enter your nickname:");
             String nickname = in.readLine();
+            log.info("Player connected: " + nickname);
             Player player = Player.builder()
                     .nickname(nickname)
                     .socket(socket)
@@ -90,9 +92,9 @@ public class GameServer {
             var p2 = waitingPlayers.poll();
             p1.setOpponent(p2);
             p2.setOpponent(p1);
+            log.info("Match created: " + p1.getNickname() + " vs " + p2.getNickname());
             p1.getOut().println("Match created: " + p1.getNickname() + " vs " + p2.getNickname());
             p2.getOut().println("Match created: " + p1.getNickname() + " vs " + p2.getNickname());
-            log.info("Match created: " + p1.getNickname() + " vs " + p2.getNickname());
             playGame(p1, p2);
         }
     }
@@ -106,6 +108,7 @@ public class GameServer {
                 gameExecutor.submit(() -> {
                     try {
                         move1.set(waitForValidMove(player1));
+                        log.info("{} chose: {}", player1.getNickname(), move1.get());
                         latch.countDown();
                     } catch (IOException e) {
                         log.error("Error while getting move from player 1", e);
@@ -114,6 +117,7 @@ public class GameServer {
                 gameExecutor.submit(() -> {
                     try {
                         move2.set(waitForValidMove(player2));
+                        log.info("{} chose: {}", player2.getNickname(), move2.get());
                         latch.countDown();
                     } catch (IOException e) {
                         log.error("Error while getting move from player 2", e);
@@ -128,12 +132,15 @@ public class GameServer {
                         return;
                     if (move1Value.equals(move2Value)) {
                         sendToBoth(player1, player2, "It's a tie! Try again.");
+                        log.info("Game ended in a tie. Restarting round...");
                         continue;
                     }
                     if (isWinner(move1Value, move2Value)) {
+                        log.info("{} wins against {}", player1.getNickname(), player2.getNickname());
                         player1.getOut().println("You win!");
                         player2.getOut().println("You lose!");
                     } else {
+                        log.info("{} wins against {}", player2.getNickname(), player1.getNickname());
                         player1.getOut().println("You lose!");
                         player2.getOut().println("You win!");
                     }
@@ -145,7 +152,7 @@ public class GameServer {
                     log.error("Game interrupted", e);
                     break;
                 } catch (IOException e) {
-                    log.error("Error while prepare result", e);
+                    log.error("Error while preparing result", e);
                     break;
                 }
             }
@@ -163,6 +170,7 @@ public class GameServer {
             player.getOut().println("Enter Rock, Paper, or Scissors:");
             move = player.getIn().readLine();
             if (move == null) {
+                log.warn("Connection lost for player: {}", player.getNickname());
                 player.getOut().println("Connection lost.");
                 player.getSocket().close();
                 return null;
