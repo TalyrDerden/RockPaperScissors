@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: RockPaperScissors
+socket:
+  port: 12345
